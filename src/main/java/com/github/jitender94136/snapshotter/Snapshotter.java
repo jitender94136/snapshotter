@@ -40,6 +40,7 @@ import com.sun.jna.NativeLibrary;
         private String nowPlaying;
         private volatile boolean waitingThread;
         private String destPath;
+        long timePeriodForSnapshot;
         public static void main(final String[] args) {
         	System.out.println(ClassLoader.getSystemResource("lib").toString());
         	if (ClassLoader.getSystemResource("lib").toString().startsWith("file")) {
@@ -78,7 +79,7 @@ import com.sun.jna.NativeLibrary;
                     System.exit(0);
                 }
             });
-
+            final JButton send = new JButton("Send");
             JMenuBar mb = new JMenuBar();
             JMenu m1 = new JMenu("FILE");
             mb.add(m1);
@@ -95,6 +96,7 @@ import com.sun.jna.NativeLibrary;
                             FileFilter filter = new FileNameExtensionFilter(
                                 "video files only", "mp4", "mkv","avi","flv");
                                 jfc.setFileFilter(filter);
+                                jfc.setAcceptAllFileFilterUsed(false);
                             int returnValue = jfc.showOpenDialog(null);
                             if (returnValue == JFileChooser.APPROVE_OPTION) {
                                 File selectedFile = jfc.getSelectedFile();
@@ -104,6 +106,7 @@ import com.sun.jna.NativeLibrary;
                             		mediaPlayerComponent.getMediaPlayer().playMedia(selectedFile.getAbsolutePath());
                                 }
                             }
+                            send.setVisible(true);
                         }
             });
             m12.addActionListener(new ActionListener() {
@@ -119,12 +122,13 @@ import com.sun.jna.NativeLibrary;
                             		destPath = selectedFile.getAbsolutePath();
                                 }
                             }
+                            send.setVisible(true);
                         }
             });
             JPanel panel = new JPanel(); // the panel is not visible in output
             JLabel label = new JLabel("Enter Seconds");
             JTextField tf = new JTextField(4); // accepts upto 4 characters
-            final JButton send = new JButton("Send");
+            
             send.addActionListener(new ActionListener() {
 				@Override
 				public void actionPerformed(ActionEvent e) {
@@ -133,82 +137,100 @@ import com.sun.jna.NativeLibrary;
 							if(!seconds.matches("\\d+")){
 								JOptionPane.showMessageDialog(frame,
 									    "Please enter numeric values only...");
+								frame.revalidate();
 								return;
-							} else if(seconds.trim().isEmpty() || seconds.trim().length() > 4) {
+							} else if(seconds.startsWith("0")){
 								JOptionPane.showMessageDialog(frame,
-									    "Input text length should be greater than 0 and less than 5");
+									    "There should be no leading zeroes...");
+								frame.revalidate();
+								return;
+							} else if(seconds.trim().isEmpty() || seconds.trim().length() > 4 || Integer.parseInt(seconds) < 3) {
+								JOptionPane.showMessageDialog(frame,
+									    "Input Text length should be greater than 0 and less than 5. The value should be greater than or equals to 3");
+								frame.revalidate();
 								return;
 							} else if(nowPlaying == null) {
 								JOptionPane.showMessageDialog(frame,
 									    "Please open a video file first to take snapshot using FILE Menu Bar");
+								frame.revalidate();
 								return;
 							} else if(destPath == null) {
 								JOptionPane.showMessageDialog(frame,
 									    "Please choose a folder for storing the snapshots...");
+								frame.revalidate();
 								return;
 							}
 							System.out.println("hiding the button....");
 							send.setVisible(false);
 							System.out.println(seconds);
-							long time = Integer.parseInt(seconds)*1000;
+							timePeriodForSnapshot = Integer.parseInt(seconds)*1000;
 							//MediaPlayer mediaPlayer = mediaPlayerComponent.getMediaPlayer();
 							//mediaPlayer.setSnapshotDirectory(new File(".").getAbsolutePath());
-							  //MediaPlayer mediaPlayer = mediaPlayerComponent.getMediaPlayer();
-							 MediaPlayerFactory factory = new MediaPlayerFactory();
-						     MediaPlayer mediaPlayer = factory.newEmbeddedMediaPlayer();
-						     System.out.println("The output directory is "+destPath);
-						     mediaPlayer.setSnapshotDirectory(destPath);
-						     mediaPlayer.startMedia(nowPlaying);
-						     waitingThread = true;
-							 mediaPlayer.addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
-								 
-								 	@Override
-								    public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
-								 			System.out.println("time changed event fired "+ newTime);
-								 			waitingThread = false;
-								 			mediaPlayer.pause();
-								 	}
-								 	
-								    @Override
-								    public void positionChanged(MediaPlayer mediaPlayer, float newPosition) {
-								    		System.out.println("position changed event fired "+ newPosition);
-								    		waitingThread = false;
-								 			mediaPlayer.pause();
-								    }
+							//MediaPlayer mediaPlayer = mediaPlayerComponent.getMediaPlayer();
+							new Thread(new Runnable() {
+								@Override
+								public void run() {
+									MediaPlayerFactory factory = new MediaPlayerFactory();
+								     MediaPlayer mediaPlayer = factory.newEmbeddedMediaPlayer();
+								     System.out.println("The output directory is "+destPath);
+								     mediaPlayer.setSnapshotDirectory(destPath);
+								     mediaPlayer.startMedia(nowPlaying);
+								     waitingThread = true;
+									 mediaPlayer.addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
+										 
+										 	@Override
+										    public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
+										 			System.out.println("time changed event fired "+ newTime);
+										 			waitingThread = false;
+										 			mediaPlayer.pause();
+										 	}
+										 	
+										    @Override
+										    public void positionChanged(MediaPlayer mediaPlayer, float newPosition) {
+										    		System.out.println("position changed event fired "+ newPosition);
+										    		waitingThread = false;
+										 			mediaPlayer.pause();
+										    }
 
-								 
-						            @Override
-						            public void snapshotTaken(MediaPlayer mediaPlayer, String filename) {
-						                System.out.println("snapshotTaken(filename=" + filename + ")");
-						                mediaPlayer.play();
-						                waitingThread = true;
-						            }
-						      });
-							  long mediaDuration = mediaPlayer.getLength();
-							  System.out.println("media duration...."+mediaDuration);
-							  while(true) {
-								    if(mediaDuration > 0 && time >= mediaDuration) {
-					                    break;
-					                }
-								    float position = (float)(new BigDecimal(time).floatValue()/new BigDecimal(mediaDuration).floatValue());
-								    System.out.println("the value of position "+position);
-								    mediaPlayer.setPosition(position);
-								    System.out.println("before inner while loop and waiting thread:-"+time +" "+waitingThread);
-								    while(waitingThread);
-								    waitingThread = true;
-								    System.out.println("after inner while loop time and waiting thread:-"+time +" "+waitingThread);
-								    File file3 = new File(destPath,"vlcj-snapshot-"+time+".png");
-								    //file3.deleteOnExit();
-								    System.out.println("Snapshot created: "+mediaPlayer.saveSnapshot(file3));
-							        time += Integer.parseInt(seconds)*1000;
-							        
-							        System.out.println("end before while loop  "+time);
-							  }
-							  System.out.println("after the while loop....");
-							  mediaPlayer.stop();
-							  mediaPlayer.release();
-							  System.out.println("showing the button again....");
-							  send.setVisible(true);
+										 
+								            @Override
+								            public void snapshotTaken(MediaPlayer mediaPlayer, String filename) {
+								                System.out.println("snapshotTaken(filename=" + filename + ")");
+								                mediaPlayer.play();
+								                waitingThread = true;
+								            }
+								      });
+									  long mediaDuration = mediaPlayer.getLength();
+									  System.out.println("media duration...."+mediaDuration);
+									  while(true) {
+										    if(mediaDuration > 0 && timePeriodForSnapshot >= mediaDuration) {
+							                    break;
+							                }
+										    float position = (float)(new BigDecimal(timePeriodForSnapshot).floatValue()/new BigDecimal(mediaDuration).floatValue());
+										    System.out.println("the value of position "+position);
+										    mediaPlayer.setPosition(position);
+										    System.out.println("before inner while loop and waiting thread:-"+timePeriodForSnapshot +" "+waitingThread);
+										    while(waitingThread);
+										    waitingThread = true;
+										    System.out.println("after inner while loop time and waiting thread:-"+timePeriodForSnapshot +" "+waitingThread);
+										    File file3 = new File(destPath,"vlcj-snapshot-"+timePeriodForSnapshot+".png");
+										    //file3.deleteOnExit();
+										    System.out.println("Snapshot created: "+mediaPlayer.saveSnapshot(file3));
+										    timePeriodForSnapshot += Integer.parseInt(seconds)*1000;
+									        
+									        System.out.println("end before while loop  "+timePeriodForSnapshot);
+									  }
+									  System.out.println("after the while loop....");
+									  mediaPlayer.stop();
+									  mediaPlayer.release();
+									  timePeriodForSnapshot = 0;
+									  System.out.println("showing the button again....");
+									  send.setVisible(true);
+									  frame.revalidate();
+									
+								}
+							}).start();
+							 
 				}
 			});
             panel.add(label); // Components Added using Flow Layout

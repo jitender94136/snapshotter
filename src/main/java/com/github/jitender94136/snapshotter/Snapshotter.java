@@ -107,6 +107,7 @@ import com.sun.jna.NativeLibrary;
                                 }
                             }
                             send.setVisible(true);
+                            frame.revalidate();
                         }
             });
             m12.addActionListener(new ActionListener() {
@@ -123,6 +124,7 @@ import com.sun.jna.NativeLibrary;
                                 }
                             }
                             send.setVisible(true);
+                            frame.revalidate();
                         }
             });
             JPanel panel = new JPanel(); // the panel is not visible in output
@@ -178,13 +180,6 @@ import com.sun.jna.NativeLibrary;
 								     waitingThread = true;
 									 mediaPlayer.addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
 										 
-										 	@Override
-										    public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
-										 			System.out.println("time changed event fired "+ newTime);
-										 			waitingThread = false;
-										 			mediaPlayer.pause();
-										 	}
-										 	
 										    @Override
 										    public void positionChanged(MediaPlayer mediaPlayer, float newPosition) {
 										    		System.out.println("position changed event fired "+ newPosition);
@@ -210,8 +205,16 @@ import com.sun.jna.NativeLibrary;
 										    System.out.println("the value of position "+position);
 										    mediaPlayer.setPosition(position);
 										    System.out.println("before inner while loop and waiting thread:-"+timePeriodForSnapshot +" "+waitingThread);
-										    while(waitingThread);
-										    waitingThread = true;
+										    while(waitingThread) {
+										    			try {
+										    					System.out.println("-----------pausing the thread");
+										    					Thread.sleep(200);	
+										    			} catch(Exception ie) {
+										    					ie.printStackTrace();
+										    			}
+										    			System.out.println("-----------Thread is out of sleep....");
+										    }	
+										    //waitingThread = true;
 										    System.out.println("after inner while loop time and waiting thread:-"+timePeriodForSnapshot +" "+waitingThread);
 										    File file3 = new File(destPath,"vlcj-snapshot-"+timePeriodForSnapshot+".png");
 										    //file3.deleteOnExit();
